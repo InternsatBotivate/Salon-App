@@ -862,7 +862,11 @@ const ProfilePage = () => {
         <div className="mt-16 text-center">
           <div className="inline-flex items-center justify-center">
             <div className="h-px w-16 bg-indigo-300/30"></div>
-            <span className="mx-4 text-indigo-200 text-sm">Powered by Botivate</span>
+            {/* <span className="mx-4 text-indigo-200 text-sm">Powered by Botivate</span> */}
+            <a href="https://www.botivate.in/" target="_blank" rel="noopener noreferrer">
+  <span className="mx-4 text-indigo-200 text-sm hover:text-blue-500">Powered by Botivate</span>
+</a>
+
             <div className="h-px w-16 bg-indigo-300/30"></div>
           </div>
           <p className="mt-4 text-indigo-300/60 text-sm">© 2025 SalonPro. All rights reserved.</p>

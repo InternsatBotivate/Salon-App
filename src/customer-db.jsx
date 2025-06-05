@@ -1000,8 +1000,18 @@ const CustomerDb = () => {
               onClick={handleSendMessage}
               className="px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-300 flex items-center"
             >
-              <Send size={18} className="mr-2" />
-              Send Message
+             {submitting ? (
+    <>
+      <div className="h-4 w-4 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+      Submitting...
+    </>
+  ) : (
+    <>
+      <MessageSquare size={18} />
+      <span>Send Message</span>
+    </>
+  )}
+
             </button>
           </div>
         </div>
@@ -1010,62 +1020,116 @@ const CustomerDb = () => {
   )
 
   // Update the handleSendMessage function to include the template message
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     // Get selected customers
-    const customers =
-      selectedCustomers.length > 0
-        ? filteredCustomers.filter((customer) => selectedCustomers.includes(customer._id))
-        : filteredCustomers.filter((customer) =>
-            messageType === "active" ? customer._status === "Active" : customer._status === "Inactive",
-          )
-
+    const customers = 
+      selectedCustomers.length > 0 
+        ? filteredCustomers.filter(customer => selectedCustomers.includes(customer._id))
+        : filteredCustomers.filter(customer => 
+            messageType === "active" ? customer._status === "Active" : customer._status === "Inactive"
+          );
+  
     if (customers.length === 0) {
       setNotification({
         show: true,
         message: "No customers selected for messaging!",
-        type: "error",
-      })
+        type: "error"
+      });
       setTimeout(() => {
-        setNotification({ show: false, message: "", type: "" })
-      }, 3000)
-      return
+        setNotification({ show: false, message: "", type: "" });
+      }, 3000);
+      return;
     }
-
-    // Find the mobile header
+  
+    // Find the mobile and name headers
     const mobileHeader = tableHeaders.find(
-      (header) => header.label.toLowerCase().includes("mobile") || header.label.toLowerCase().includes("phone"),
-    )
-
-    if (!mobileHeader) {
+      header => header.label.toLowerCase().includes("mobile") || header.label.toLowerCase().includes("phone")
+    );
+    const nameHeader = tableHeaders.find(
+      header => header.label.toLowerCase().includes("customer") || header.label.toLowerCase().includes("name")
+    );
+  
+    if (!mobileHeader || !nameHeader) {
       setNotification({
         show: true,
-        message: "No mobile number column found!",
-        type: "error",
-      })
+        message: "Required columns (name/mobile) not found!",
+        type: "error"
+      });
       setTimeout(() => {
-        setNotification({ show: false, message: "", type: "" })
-      }, 3000)
-      return
+        setNotification({ show: false, message: "", type: "" });
+      }, 3000);
+      return;
     }
-
-    // In a real implementation, you would send this to your messaging API
-    // For now, we'll just show a success notification
-    setNotification({
-      show: true,
-      message: `Message sent to ${customers.length} ${messageType} customers!${
-        selectedPromoCard ? ` Promo: ${selectedPromoCard.code}` : ""
-      }`,
-      type: "success",
-    })
-    setTimeout(() => {
-      setNotification({ show: false, message: "", type: "" })
-    }, 3000)
-
-    setShowSendMessageModal(false)
-    setSelectedCustomers([])
-    setSelectedTemplate("")
-    setCustomMessage("")
-  }
+  
+    try {
+      setSubmitting(true);
+  
+      // Prepare data to send to Google Sheets
+      const today = new Date();
+      const day = today.getDate().toString().padStart(2, '0');
+      const month = (today.getMonth() + 1).toString().padStart(2, '0');
+      const year = today.getFullYear();
+      const timestamp = `${day}/${month}/${year}`;
+  
+      // Process each customer one by one (since your script doesn't support batch)
+      for (const customer of customers) {
+        const customerName = customer[nameHeader.id] || "N/A";
+        const mobileNumber = customer[mobileHeader.id] || "N/A";
+        
+        // Prepare the row data in the format your script expects
+        const rowData = [
+          timestamp,                // Column A: Timestamp
+          customerName,            // Column B: Customer Name
+          mobileNumber,            // Column C: Mobile Number
+          customMessage,           // Column D: Message
+          selectedPromoCard?.code || "",  // Column E: Promo Code (if any)
+        ];
+  
+        const formData = new FormData();
+        formData.append("sheetName", "Send Message");
+        formData.append("rowData", JSON.stringify(rowData));
+        formData.append("action", "insert");
+  
+        // Send data to Google Sheets
+        const response = await fetch(scriptUrl, {
+          method: "POST",
+          body: formData
+        });
+  
+        // Try to parse the response (even in no-cors mode)
+        try {
+          const result = await response.text();
+          console.log(`Response for ${customerName}:`, result);
+        } catch (error) {
+          console.log(`Submitted data for ${customerName}`);
+        }
+      }
+  
+      // Show success notification
+      setNotification({
+        show: true,
+        message: `Message data submitted for ${customers.length} customers!`,
+        type: "success"
+      });
+  
+    } catch (error) {
+      console.error("Error submitting message data:", error);
+      setNotification({
+        show: true,
+        message: `Failed to submit message data: ${error.message}`,
+        type: "error"
+      });
+    } finally {
+      setTimeout(() => {
+        setNotification({ show: false, message: "", type: "" });
+      }, 3000);
+      setSubmitting(false);
+      setShowSendMessageModal(false);
+      setSelectedCustomers([]);
+      setSelectedTemplate("");
+      setCustomMessage("");
+    }
+  };
 
   // Replace the Send Message Modal in the return statement
   // Find and replace the existing Send Message Modal with this:
