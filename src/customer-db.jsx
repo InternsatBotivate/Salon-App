@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Search, Edit, Trash2, UserPlus, Save, X, Users, MessageSquare, Send, Calendar } from "lucide-react"
-import { useAuth } from "./Context/AuthContext" // Import useAuth hook
+// import { User, Search, Trash2, Save, X, MessageSquare, Calendar } from "lucide-react"
+import { User, Search, Trash2, Save, X, MessageSquare, Calendar, Image as ImageIcon } from "lucide-react"
+// import { useAuth } from "./Context/AuthContext" // Import useAuth hook
 
 const CustomerDb = () => {
   // State for customer data and UI
@@ -21,7 +22,7 @@ const CustomerDb = () => {
     message: "",
     type: "",
   })
-  const { user } = useAuth()
+  // const { user } = useAuth()
 
   // Add state for delete confirmation modal
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -46,38 +47,66 @@ const CustomerDb = () => {
 
   // Google Sheet Details - Replace with your actual sheet ID
   // const sheetId = '1ghSQ9d2dfSotfnh8yrkiqIT00kg_ej7n0pnygzP0B9w';
-  const sheetId = user?.sheetId || "1ghSQ9d2dfSotfnh8yrkiqIT00kg_ej7n0pnygzP0B9w"
+  const sheetId = "1ghSQ9d2dfSotfnh8yrkiqIT00kg_ej7n0pnygzP0B9w"
   const scriptUrl =
-    user?.appScriptUrl ||
     "https://script.google.com/macros/s/AKfycbx-5-79dRjYuTIBFjHTh3_Q8WQa0wWrRKm7ukq5854ET9OCHiAwno-gL1YmZ9juotMH/exec"
   const sheetName = "Booking DB"
   const templateSheetName = "Whatsapp Temp"
 
+  // const convertGoogleDriveImageUrl = (originalUrl) => {
+  //   if (!originalUrl || typeof originalUrl !== 'string') {
+  //     return null;
+  //   }
+  
+  //   if (!originalUrl.includes("drive.google.com")) {
+  //     return originalUrl;
+  //   }
+  
+  //   const fileIdMatch = originalUrl.match(/\/d\/([^/]+)|id=([^&]+)/);
+  //   const fileId = fileIdMatch ? fileIdMatch[1] || fileIdMatch[2] : null;
+  
+  //   if (!fileId) return originalUrl;
+  
+  //   return [
+  //     `https://lh3.googleusercontent.com/d/${fileId}`,
+  //     `https://drive.google.com/uc?export=view&id=${fileId}`,
+  //     `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`,
+  //     `https://drive.google.com/uc?id=${fileId}`,
+  //     originalUrl,
+  //   ];
+  // };
+  
+
   // Fetch customer data from Google Sheet
   useEffect(() => {
+    let isMounted = true; // Add cleanup flag
+    
     const fetchGoogleSheetData = async () => {
       try {
         setLoading(true)
         console.log("Starting to fetch Google Sheet data...")
-
+  
         const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`
-
+  
         const response = await fetch(url)
         if (!response.ok) {
           throw new Error(`Failed to fetch data: ${response.status}`)
         }
-
+  
         const text = await response.text()
         const jsonStart = text.indexOf("{")
         const jsonEnd = text.lastIndexOf("}")
         const jsonString = text.substring(jsonStart, jsonEnd + 1)
         const data = JSON.parse(jsonString)
-
+  
+        if (!isMounted) return; // Check if component is still mounted
+  
         if (!data.table || !data.table.cols || data.table.cols.length === 0) {
           setError("No data found in the sheet")
           setLoading(false)
           return
         }
+  
 
         let headers = []
         let allRows = data.table.rows || []
@@ -277,9 +306,10 @@ const CustomerDb = () => {
         setLoading(false)
 
         // Fetch WhatsApp templates
-        fetchWhatsAppTemplates()
-        // Fetch promo cards
-        fetchPromoCards()
+        if (isMounted) {
+          await fetchWhatsAppTemplates()
+          await fetchPromoCards()
+        }
       } catch (error) {
         console.error("Error fetching Google Sheet data:", error)
         setError("Failed to load customer data")
@@ -288,139 +318,211 @@ const CustomerDb = () => {
     }
 
     fetchGoogleSheetData()
+    return () => {
+      isMounted = false;
+    }
   }, [])
 
   // Function to fetch WhatsApp templates from the Whatsapp Temp sheet
-  const fetchWhatsAppTemplates = async () => {
-    try {
-      setLoadingTemplates(true)
-      console.log("Fetching WhatsApp templates...")
+  // Function to fetch WhatsApp templates from the Whatsapp Temp sheet
+const fetchWhatsAppTemplates = async () => {
+  try {
+    setLoadingTemplates(true)
+    console.log("Fetching WhatsApp templates...")
 
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(templateSheetName)}`
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(templateSheetName)}`
 
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch WhatsApp templates: ${response.status}`)
-      }
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch WhatsApp templates: ${response.status}`)
+    }
 
-      const text = await response.text()
-      const jsonStart = text.indexOf("{")
-      const jsonEnd = text.lastIndexOf("}")
-      const jsonString = text.substring(jsonStart, jsonEnd + 1)
-      const data = JSON.parse(jsonString)
+    const text = await response.text()
+    const jsonStart = text.indexOf("{")
+    const jsonEnd = text.lastIndexOf("}")
+    const jsonString = text.substring(jsonStart, jsonEnd + 1)
+    const data = JSON.parse(jsonString)
 
-      if (!data.table || !data.table.cols || data.table.cols.length === 0) {
-        console.log("No templates found in the sheet")
-        setTemplates([])
-        setLoadingTemplates(false)
-        return
-      }
-
-      // Define column indexes
-      const idIndex = 0 // Assuming column A is ID
-      const nameIndex = 1 // Assuming column B is Template Name
-      const typeIndex = 2 // Assuming column C is Type (active or inactive)
-      const messageIndex = 3 // Assuming column D is Message
-      const deletedIndex = 5 // Assuming column F is delete flag
-
-      const templatesData = data.table.rows
-        .filter((row) => {
-          // Skip deleted templates
-          const isDeleted =
-            row.c && row.c.length > deletedIndex && row.c[deletedIndex] && row.c[deletedIndex].v === "Yes"
-          return !isDeleted && row.c && row.c.some((cell) => cell && cell.v)
-        })
-        .map((row, rowIndex) => {
-          const template = {
-            id: row.c && row.c[idIndex] && row.c[idIndex].v ? String(row.c[idIndex].v) : `template-${rowIndex}`,
-            name: row.c && row.c[nameIndex] && row.c[nameIndex].v ? String(row.c[nameIndex].v) : "Unnamed Template",
-            type: row.c && row.c[typeIndex] && row.c[typeIndex].v ? String(row.c[typeIndex].v).toLowerCase() : "active",
-            message: row.c && row.c[messageIndex] && row.c[messageIndex].v ? String(row.c[messageIndex].v) : "",
-          }
-          return template
-        })
-
-      console.log("Fetched WhatsApp templates:", templatesData)
-      setTemplates(templatesData)
-      setLoadingTemplates(false)
-    } catch (error) {
-      console.error("Error fetching WhatsApp templates:", error)
+    if (!data.table || !data.table.cols || data.table.cols.length === 0) {
+      console.log("No templates found in the sheet")
       setTemplates([])
       setLoadingTemplates(false)
+      return
     }
+
+    // Update the column indexes for the Whatsapp Temp sheet
+    const idIndex = 0 // Column A - ID
+    const nameIndex = 1 // Column B - Template Name
+    const messageIndex = 2 // Column C - Combined Message
+    const createdAtIndex = 3 // Column D - Created At
+    const deletedIndex = 4 // Column E - Delete flag
+    const imageUrlIndex = 5 // Column F - Image URL (0-based index, so F = 5)
+
+    console.log("Column structure:", data.table.cols.map((col, index) => `${index}: ${col.label}`))
+
+    const templatesData = data.table.rows
+      .filter((row) => {
+        // Skip deleted templates
+        const isDeleted =
+          row.c && row.c.length > deletedIndex && row.c[deletedIndex] && row.c[deletedIndex].v === "Yes"
+        return !isDeleted && row.c && row.c.some((cell) => cell && cell.v)
+      })
+      .map((row, rowIndex) => {
+        // Extract image URL from column F (index 5)
+        let imageUrl = null
+        if (row.c && row.c[imageUrlIndex] && row.c[imageUrlIndex].v) {
+          imageUrl = String(row.c[imageUrlIndex].v).trim()
+          console.log(`Template ${rowIndex} image URL from sheet:`, imageUrl)
+          
+          // Convert Google Drive URLs to proper format if needed
+          if (imageUrl.includes("drive.google.com")) {
+            // Extract file ID and convert to proper format
+            const fileIdMatch = imageUrl.match(/\/d\/([^/]+)|id=([^&]+)/);
+            const fileId = fileIdMatch ? fileIdMatch[1] || fileIdMatch[2] : null;
+            
+            if (fileId) {
+              // Use the export=download format you mentioned
+              imageUrl = `https://drive.google.com/uc?id=${fileId}&export=download`
+              console.log(`Converted image URL:`, imageUrl)
+            }
+          }
+        }
+
+        const template = {
+          id: row.c && row.c[idIndex] && row.c[idIndex].v ? String(row.c[idIndex].v) : `template-${rowIndex}`,
+          name: row.c && row.c[nameIndex] && row.c[nameIndex].v ? String(row.c[nameIndex].v) : "Unnamed Template",
+          type: "active",
+          message: row.c && row.c[messageIndex] && row.c[messageIndex].v ? String(row.c[messageIndex].v) : "",
+          imageUrl: imageUrl, // Use the processed image URL
+        }
+        
+        console.log(`Template ${rowIndex} final data:`, template)
+        return template
+      })
+
+    console.log("Fetched WhatsApp templates:", templatesData)
+    setTemplates(templatesData)
+    setLoadingTemplates(false)
+  } catch (error) {
+    console.error("Error fetching WhatsApp templates:", error)
+    setTemplates([])
+    setLoadingTemplates(false)
+  }
+}
+
+  const handlePromoCardChange = (e) => {
+    const selected = promoCards.find((card) => card.id === e.target.value)
+    setSelectedPromoCard(selected || null)
   }
 
+  const isPromoCardExpired = (promoCard) => {
+    if (!promoCard.expiry) return false
+    
+    const today = new Date()
+    
+    // Parse DD/MM/YYYY format
+    if (promoCard.expiry.includes('/')) {
+      const [day, month, year] = promoCard.expiry.split('/').map(Number)
+      const expiryDate = new Date(year, month - 1, day)
+      return today > expiryDate
+    }
+    
+    return false
+  }
+
+  
+
   // Function to fetch promo cards
-  const fetchPromoCards = async () => {
-    try {
-      setLoadingPromoCards(true)
-      console.log("Fetching promo cards...")
+  // Replace your existing fetchPromoCards function with this updated version
+const fetchPromoCards = async () => {
+  try {
+    setLoadingPromoCards(true)
+    console.log("Fetching promo cards...")
 
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=Promo Cards`
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=Promo Cards`
 
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch promo cards: ${response.status}`)
-      }
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch promo cards: ${response.status}`)
+    }
 
-      const text = await response.text()
-      const jsonStart = text.indexOf("{")
-      const jsonEnd = text.lastIndexOf("}")
-      const jsonString = text.substring(jsonStart, jsonEnd + 1)
-      const data = JSON.parse(jsonString)
+    const text = await response.text()
+    const jsonStart = text.indexOf("{")
+    const jsonEnd = text.lastIndexOf("}")
+    const jsonString = text.substring(jsonStart, jsonEnd + 1)
+    const data = JSON.parse(jsonString)
 
-      if (!data.table || !data.table.cols || data.table.cols.length === 0) {
-        console.log("No promo cards found in the sheet")
-        setPromoCards([])
-        setLoadingPromoCards(false)
-        return
-      }
+    if (!data.table || !data.table.cols || data.table.cols.length === 0) {
+      console.log("No promo cards found in the sheet")
+      setPromoCards([])
+      setLoadingPromoCards(false)
+      return
+    }
 
-      // Define column indexes
-      const codeIndex = data.table.cols.findIndex((col) => col.label && col.label.toLowerCase().includes("code"))
-      const discountIndex = data.table.cols.findIndex(
-        (col) => col.label && col.label.toLowerCase().includes("discount"),
-      )
-      const descriptionIndex = data.table.cols.findIndex(
-        (col) => col.label && col.label.toLowerCase().includes("description"),
-      )
-      const deletedIndex = data.table.cols.findIndex((col) => col.label && col.label.toLowerCase().includes("delete"))
-      const expiryIndex = data.table.cols.findIndex(
-        (col) =>
-          col.label && (col.label.toLowerCase().includes("expiry") || col.label.toLowerCase().includes("valid until")),
-      )
+    // Define column indexes - Column E should be index 4 (0-based)
+    const codeIndex = data.table.cols.findIndex((col) => col.label && col.label.toLowerCase().includes("code"))
+    const discountIndex = data.table.cols.findIndex(
+      (col) => col.label && col.label.toLowerCase().includes("discount"),
+    )
+    const descriptionIndex = data.table.cols.findIndex(
+      (col) => col.label && col.label.toLowerCase().includes("description"),
+    )
+    const deletedIndex = data.table.cols.findIndex((col) => col.label && col.label.toLowerCase().includes("delete"))
+    
+    // For column E (index 4), or find by expiry/valid until labels
+    let expiryIndex = 4; // Default to column E (0-based index)
+    const foundExpiryIndex = data.table.cols.findIndex(
+      (col) =>
+        col.label && (col.label.toLowerCase().includes("expiry") || col.label.toLowerCase().includes("valid until")),
+    )
+    if (foundExpiryIndex !== -1) {
+      expiryIndex = foundExpiryIndex;
+    }
 
-      const today = new Date()
+    console.log("Expiry column index:", expiryIndex); // Debug log
 
-      const promoCardsData = data.table.rows
-        .filter((row) => {
-          // Skip deleted promo cards
-          const isDeleted =
-            deletedIndex !== -1 &&
-            row.c &&
-            row.c.length > deletedIndex &&
-            row.c[deletedIndex] &&
-            row.c[deletedIndex].v === "Yes"
+    const today = new Date()
 
-          // Check if the promo card is expired
-          let isExpired = false
-          if (expiryIndex !== -1 && row.c && row.c[expiryIndex] && row.c[expiryIndex].v) {
-            // Handle date values
-            if (row.c[expiryIndex].v.toString().indexOf("Date") === 0) {
-              const dateString = row.c[expiryIndex].v.toString()
-              const dateParts = dateString.substring(5, dateString.length - 1).split(",")
+    const promoCardsData = data.table.rows
+      .filter((row) => {
+        // Skip deleted promo cards
+        const isDeleted =
+          deletedIndex !== -1 &&
+          row.c &&
+          row.c.length > deletedIndex &&
+          row.c[deletedIndex] &&
+          row.c[deletedIndex].v === "Yes"
 
-              if (dateParts.length >= 3) {
-                const year = Number.parseInt(dateParts[0])
-                const month = Number.parseInt(dateParts[1]) // 0-indexed month
-                const day = Number.parseInt(dateParts[2])
+        // Check if the promo card is expired
+        let isExpired = false
+        if (expiryIndex !== -1 && row.c && row.c[expiryIndex] && row.c[expiryIndex].v) {
+          const expiryValue = row.c[expiryIndex].v;
+          console.log("Raw expiry value:", expiryValue); // Debug log
+          
+          // Handle different date formats
+          if (expiryValue.toString().indexOf("Date") === 0) {
+            // Google Sheets Date object format
+            const dateString = expiryValue.toString()
+            const dateParts = dateString.substring(5, dateString.length - 1).split(",")
 
-                const expiryDate = new Date(year, month, day)
-                isExpired = today > expiryDate
-              }
-            } else if (typeof row.c[expiryIndex].v === "string") {
-              // Try to parse DD/MM/YYYY format
-              const dateParts = row.c[expiryIndex].v.split("/")
+            if (dateParts.length >= 3) {
+              const year = Number.parseInt(dateParts[0])
+              const month = Number.parseInt(dateParts[1]) // 0-indexed month
+              const day = Number.parseInt(dateParts[2])
+
+              const expiryDate = new Date(year, month, day)
+              isExpired = today > expiryDate
+            }
+          } else if (typeof expiryValue === "string") {
+            // Handle YYYY-MM-DD format (like "2025-04-30")
+            if (expiryValue.includes('-') && expiryValue.length === 10) {
+              const [year, month, day] = expiryValue.split('-').map(Number)
+              const expiryDate = new Date(year, month - 1, day) // month is 0-indexed
+              isExpired = today > expiryDate
+            }
+            // Handle DD/MM/YYYY format
+            else if (expiryValue.includes('/')) {
+              const dateParts = expiryValue.split("/")
               if (dateParts.length === 3) {
                 const day = Number.parseInt(dateParts[0])
                 const month = Number.parseInt(dateParts[1]) - 1 // 0-indexed month
@@ -431,37 +533,207 @@ const CustomerDb = () => {
               }
             }
           }
+        }
 
-          return !isDeleted && !isExpired && row.c && row.c.some((cell) => cell && cell.v)
-        })
-        .map((row, rowIndex) => {
-          const promoCard = {
-            id: `promo-${rowIndex}`,
-            code:
-              codeIndex !== -1 && row.c && row.c[codeIndex] && row.c[codeIndex].v
-                ? String(row.c[codeIndex].v)
-                : "PROMO",
-            discount:
-              discountIndex !== -1 && row.c && row.c[discountIndex] && row.c[discountIndex].v
-                ? String(row.c[discountIndex].v)
-                : "0",
-            description:
-              descriptionIndex !== -1 && row.c && row.c[descriptionIndex] && row.c[descriptionIndex].v
-                ? String(row.c[descriptionIndex].v)
-                : "",
+        return !isDeleted && !isExpired && row.c && row.c.some((cell) => cell && cell.v)
+      })
+      .map((row, rowIndex) => {
+        // Get expiry date and format it as DD/MM/YYYY
+        let expiryDate = ''
+        if (expiryIndex !== -1 && row.c && row.c[expiryIndex] && row.c[expiryIndex].v) {
+          const expiryValue = row.c[expiryIndex].v;
+          
+          if (expiryValue.toString().indexOf("Date") === 0) {
+            // Google Sheets Date object format
+            const dateString = expiryValue.toString()
+            const dateParts = dateString.substring(5, dateString.length - 1).split(",")
+            if (dateParts.length >= 3) {
+              const year = Number.parseInt(dateParts[0])
+              const month = Number.parseInt(dateParts[1]) + 1 // Convert from 0-indexed
+              const day = Number.parseInt(dateParts[2])
+              expiryDate = `${day.toString().padStart(2, "0")}/${month.toString().padStart(2, "0")}/${year}`
+            }
+          } else if (typeof expiryValue === "string") {
+            // Handle YYYY-MM-DD format (like "2025-04-30")
+            if (expiryValue.includes('-') && expiryValue.length === 10) {
+              const [year, month, day] = expiryValue.split('-').map(Number)
+              expiryDate = `${day.toString().padStart(2, "0")}/${month.toString().padStart(2, "0")}/${year}`
+            }
+            // Handle DD/MM/YYYY format (already in correct format)
+            else if (expiryValue.includes('/')) {
+              expiryDate = expiryValue
+            }
+            // Handle other string formats
+            else {
+              expiryDate = expiryValue
+            }
           }
-          return promoCard
-        })
+        }
 
-      console.log("Fetched promo cards:", promoCardsData)
-      setPromoCards(promoCardsData)
-      setLoadingPromoCards(false)
+        console.log("Formatted expiry date:", expiryDate); // Debug log
+
+        const promoCard = {
+          id: `promo-${rowIndex}`,
+          code:
+            codeIndex !== -1 && row.c && row.c[codeIndex] && row.c[codeIndex].v
+              ? String(row.c[codeIndex].v)
+              : "PROMO",
+          discount:
+            discountIndex !== -1 && row.c && row.c[discountIndex] && row.c[discountIndex].v
+              ? String(row.c[discountIndex].v)
+              : "0",
+          description:
+            descriptionIndex !== -1 && row.c && row.c[descriptionIndex] && row.c[descriptionIndex].v
+              ? String(row.c[descriptionIndex].v)
+              : "",
+          expiry: expiryDate || 'No expiry set', // Use formatted date or fallback
+        }
+        return promoCard
+      })
+
+    console.log("Fetched promo cards with expiry:", promoCardsData)
+    setPromoCards(promoCardsData)
+    setLoadingPromoCards(false)
+  } catch (error) {
+    console.error("Error fetching promo cards:", error)
+    setPromoCards([])
+    setLoadingPromoCards(false)
+  }
+}
+
+  const testMaytapiConnection = async () => {
+    try {
+      const maytapiConfig = {
+        productId: "930d3e45-c2bc-4a0f-b281-7d7827de10ff",
+        token: "c4bb6257-cf31-40f4-9138-ac275c592fdb",
+        phoneId: "97203",
+        baseUrl: "https://api.maytapi.com/api/930d3e45-c2bc-4a0f-b281-7d7827de10ff",
+      }
+  
+      const response = await fetch(`${maytapiConfig.baseUrl}/${maytapiConfig.phoneId}/status`, {
+        method: "GET",
+        headers: {
+          "x-maytapi-key": maytapiConfig.token,
+        },
+      })
+  
+      const result = await response.json()
+      console.log("Maytapi Status:", result)
+      
+      return result
     } catch (error) {
-      console.error("Error fetching promo cards:", error)
-      setPromoCards([])
-      setLoadingPromoCards(false)
+      console.error("Maytapi connection test failed:", error)
+      return { error: error.message }
     }
   }
+
+  // Function to send WhatsApp message via Maytapi
+  const sendWhatsAppMessage = async (phoneNumber, message, customerName, imageUrl = null) => {
+    try {
+      const maytapiConfig = {
+        productId: "930d3e45-c2bc-4a0f-b281-7d7827de10ff",
+        token: "c4bb6257-cf31-40f4-9138-ac275c592fdb",
+        phoneId: "97203",
+        baseUrl: "https://api.maytapi.com/api/930d3e45-c2bc-4a0f-b281-7d7827de10ff",
+      }
+  
+      // Clean phone number (remove any non-digits except +)
+      let cleanPhone = phoneNumber.toString().replace(/[^\d+]/g, "")
+      
+      // Remove any leading zeros after country code
+      if (cleanPhone.startsWith("+91")) {
+        cleanPhone = "+91" + cleanPhone.substring(3).replace(/^0+/, "")
+      } else if (!cleanPhone.startsWith("+")) {
+        cleanPhone = "+91" + cleanPhone.replace(/^0+/, "")
+      }
+  
+      console.log(`Attempting to send message to ${customerName} at ${cleanPhone}`)
+  
+      let payload;
+      if (imageUrl && imageUrl.trim() !== "") {
+        // Send image with caption
+        payload = {
+          to_number: cleanPhone,
+          type: "media",
+          message: imageUrl,
+          text: message
+        }
+      } else {
+        // Send text only
+        payload = {
+          to_number: cleanPhone,
+          type: "text",
+          message: message
+        }
+      }
+  
+      console.log("Payload:", JSON.stringify(payload, null, 2))
+  
+      const response = await fetch(`${maytapiConfig.baseUrl}/${maytapiConfig.phoneId}/sendMessage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-maytapi-key": maytapiConfig.token,
+        },
+        body: JSON.stringify(payload),
+      })
+  
+      const result = await response.json()
+      console.log(`API Response for ${customerName}:`, result)
+  
+      if (response.ok && result.success !== false) {
+        console.log(`✅ Message sent successfully to ${customerName} (${cleanPhone})`)
+        return { success: true, result }
+      } else {
+        console.error(`❌ Failed to send message to ${customerName}:`, result)
+        return { success: false, error: result.message || 'Unknown error' }
+      }
+    } catch (error) {
+      console.error(`💥 Error sending message to ${customerName}:`, error)
+      return { success: false, error: error.message }
+    }
+  }
+  
+  
+
+  // Function to replace template variables with customer data
+  const replaceTemplateVariables = (template, customer) => {
+  if (!template || typeof template !== 'string') {
+    return template || ''
+  }
+
+  let message = template
+
+  // Find the relevant headers for customer data
+  const nameHeader = tableHeaders.find(
+    (h) => h.label.toLowerCase().includes("customer") || h.label.toLowerCase().includes("name"),
+  )
+  const mobileHeader = tableHeaders.find(
+    (h) => h.label.toLowerCase().includes("mobile") || h.label.toLowerCase().includes("phone"),
+  )
+  const addressHeader = tableHeaders.find((h) => h.label.toLowerCase().includes("address"))
+  const emailHeader = tableHeaders.find((h) => h.label.toLowerCase().includes("email"))
+
+  // Replace variables with actual customer data (only once)
+  if (nameHeader && customer[nameHeader.id]) {
+    const nameValue = String(customer[nameHeader.id]).trim()
+    message = message.replace(/{name}/gi, nameValue)
+  }
+  if (mobileHeader && customer[mobileHeader.id]) {
+    const phoneValue = String(customer[mobileHeader.id]).trim()
+    message = message.replace(/{phone}/gi, phoneValue)
+  }
+  if (addressHeader && customer[addressHeader.id]) {
+    const addressValue = String(customer[addressHeader.id]).trim()
+    message = message.replace(/{address}/gi, addressValue)
+  }
+  if (emailHeader && customer[emailHeader.id]) {
+    const emailValue = String(customer[emailHeader.id]).trim()
+    message = message.replace(/{email}/gi, emailValue)
+  }
+
+  return message
+}
 
   // Filter customers by search term
   const filteredCustomers = customerList.filter((customer) => {
@@ -788,6 +1060,143 @@ const CustomerDb = () => {
     }
   }
 
+  // Enhanced Google Drive URL converter with multiple formats
+const convertGoogleDriveImageUrl = (originalUrl) => {
+  if (!originalUrl || typeof originalUrl !== "string") {
+    return null;
+  }
+
+  // If it's not a Google Drive URL, return as is
+  if (!originalUrl.includes("drive.google.com")) {
+    return originalUrl;
+  }
+
+  // Extract file ID from various Google Drive URL formats
+  const fileIdMatch = originalUrl.match(/\/d\/([^/]+)|id=([^&]+)/);
+  const fileId = fileIdMatch ? fileIdMatch[1] || fileIdMatch[2] : null;
+
+  if (!fileId) return originalUrl;
+
+  // Return an array of possible URLs to try
+  return [
+    // Direct Google Drive CDN URLs
+    `https://lh3.googleusercontent.com/d/${fileId}`,
+    // Export view URLs (more likely to work with permissions)
+    `https://drive.google.com/uc?export=view&id=${fileId}`,
+    // Thumbnail URLs (often work even with limited permissions)
+    `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`,
+    // Alternative format
+    `https://drive.google.com/uc?id=${fileId}`,
+    // Original URL as fallback
+    originalUrl,
+  ];
+};
+
+// Component for images with fallback handling
+// Component for images with fallback handling
+const ImgWithFallback = ({ src, alt, name, className }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attemptCount, setAttemptCount] = useState(0);
+
+  // Reset when src changes
+  useEffect(() => {
+    setImgSrc(src);
+    setLoadFailed(false);
+    setAttemptCount(0);
+  }, [src]);
+
+  // Handle image load errors with multiple fallback attempts
+  const handleError = () => {
+    console.log(`Image load failed for attempt ${attemptCount + 1}:`, imgSrc);
+    
+    if (attemptCount === 0 && imgSrc === src) {
+      // First failure - try alternative Google Drive formats
+      if (imgSrc && imgSrc.includes("drive.google.com")) {
+        let fileId = null;
+        const match = imgSrc.match(/\/d\/([^/&=]+)|id=([^&=]+)/);
+        fileId = match ? match[1] || match[2] : null;
+
+        if (fileId) {
+          // Try the thumbnail format
+          const newSrc = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+          console.log("Trying thumbnail format:", newSrc);
+          setImgSrc(newSrc);
+          setAttemptCount(1);
+          return;
+        }
+      }
+    } else if (attemptCount === 1) {
+      // Second failure - try another format
+      if (imgSrc && imgSrc.includes("drive.google.com")) {
+        let fileId = null;
+        const match = imgSrc.match(/\/d\/([^/&=]+)|id=([^&=]+)/);
+        fileId = match ? match[1] || match[2] : null;
+
+        if (fileId) {
+          // Try the uc format without export=download
+          const newSrc = `https://drive.google.com/uc?id=${fileId}`;
+          console.log("Trying uc format:", newSrc);
+          setImgSrc(newSrc);
+          setAttemptCount(2);
+          return;
+        }
+      }
+    } else if (attemptCount === 2) {
+      // Third failure - try lh3.googleusercontent format
+      if (imgSrc && imgSrc.includes("drive.google.com")) {
+        let fileId = null;
+        const match = imgSrc.match(/\/d\/([^/&=]+)|id=([^&=]+)/);
+        fileId = match ? match[1] || match[2] : null;
+
+        if (fileId) {
+          const newSrc = `https://lh3.googleusercontent.com/d/${fileId}`;
+          console.log("Trying lh3 format:", newSrc);
+          setImgSrc(newSrc);
+          setAttemptCount(3);
+          return;
+        }
+      }
+    }
+    
+    // All attempts failed - show fallback
+    console.log("All image load attempts failed, showing fallback");
+    setLoadFailed(true);
+  };
+
+  // If all image loading attempts failed, show a fallback with initials
+  if (loadFailed) {
+    // Extract initials from name
+    const initials = name
+      ? name
+          .split(" ")
+          .map((part) => part.charAt(0))
+          .join("")
+          .toUpperCase()
+          .substring(0, 2)
+      : "IMG";
+
+    // Return a styled div with initials
+    return (
+      <div className={`${className} bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center`}>
+        <span className="text-white text-lg font-bold">{initials}</span>
+      </div>
+    );
+  }
+
+  // Return the image with error handling
+  return (
+    <img
+      src={imgSrc || "/placeholder.svg"}
+      alt={alt}
+      className={`${className} object-cover`}
+      onError={handleError}
+      style={{ objectFit: "cover", width: "100%", height: "100%" }}
+      onLoad={() => console.log("Image loaded successfully:", imgSrc)}
+    />
+  );
+};
+
   // Handle canceling delete
   const cancelDelete = () => {
     setShowDeleteModal(false)
@@ -814,41 +1223,46 @@ const CustomerDb = () => {
     }
   }
 
-  // Handle opening send message modal
-  const handleSendMessageClick = () => {
+  // Replace the handleSendMessageClick function with this:
+  const handleSendMessageClick = async () => {
+    // Always show the modal regardless of selection
     setMessageType("active")
     setSelectedPromoCard(null)
     setShowSendMessageModal(true)
   }
 
+  // Remove the handleDirectSubmit function entirely since we don't need it anymore
+
   // Handle template selection
   const handleTemplateChange = (e) => {
-    const templateId = e.target.value
-    setSelectedTemplate(templateId)
-
+    const templateId = e.target.value              // Get selected template ID from dropdown
+    setSelectedTemplate(templateId)                // Update state with selected template
+    
     if (templateId) {
-      const template = templates.find((t) => t.id === templateId)
+      const template = templates.find((t) => t.id === templateId)  // Find the template object
       if (template) {
-        // Replace placeholders with customer data if a customer is selected
-        let message = template.message
-
+        let message = template.message              // Get the template message
+        
+        // If exactly one customer is selected, personalize the message
         if (selectedCustomers.length === 1) {
           const customer = filteredCustomers.find((c) => c._id === selectedCustomers[0])
-
-          // Find the name header
+          
+          // Find the column that contains customer names
           const nameHeader = tableHeaders.find(
-            (header) => header.label.toLowerCase().includes("customer") || header.label.toLowerCase().includes("name"),
+            (header) => header.label.toLowerCase().includes("customer") || 
+                       header.label.toLowerCase().includes("name")
           )
-
+          
+          // Replace {name} placeholder with actual customer name
           if (nameHeader && customer && customer[nameHeader.id]) {
             message = message.replace(/{name}/g, customer[nameHeader.id])
           }
         }
-
-        setCustomMessage(message)
+        
+        setCustomMessage(message)                   // Update the message textarea
       }
     } else {
-      setCustomMessage("")
+      setCustomMessage("")                          // Clear message if no template selected
     }
   }
 
@@ -868,12 +1282,14 @@ const CustomerDb = () => {
           </div>
 
           <div className="mb-6">
-            <p className="text-gray-600">
-              Send a message to{" "}
-              {selectedCustomers.length > 0
-                ? `${selectedCustomers.length} selected customers`
-                : `all ${messageType} customers`}
-            </p>
+            <p className="text-gray-600">Send a message to all {messageType} customers</p>
+            {selectedCustomers.length > 0 && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-md">
+                <p className="text-blue-800 font-medium">
+                  {selectedCustomers.length} customer{selectedCustomers.length > 1 ? "s" : ""} selected
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -890,7 +1306,6 @@ const CustomerDb = () => {
                     value="active"
                     checked={messageType === "active"}
                     onChange={() => setMessageType("active")}
-                    disabled={selectedCustomers.length > 0}
                   />
                   <span className="ml-2">Active Customers</span>
                 </label>
@@ -902,16 +1317,10 @@ const CustomerDb = () => {
                     value="inactive"
                     checked={messageType === "inactive"}
                     onChange={() => setMessageType("inactive")}
-                    disabled={selectedCustomers.length > 0}
                   />
                   <span className="ml-2">Inactive Customers</span>
                 </label>
               </div>
-              {selectedCustomers.length > 0 && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Customer type selection is disabled when specific customers are selected.
-                </p>
-              )}
             </div>
 
             <div>
@@ -937,40 +1346,85 @@ const CustomerDb = () => {
                   No {messageType} templates available.
                 </div>
               )}
+{selectedTemplate && (
+  <div className="mt-2 p-3 bg-gray-50 rounded-md">
+    <h5 className="text-sm font-medium text-gray-700 mb-2">Template Preview:</h5>
+    <p className="text-sm text-gray-600 whitespace-pre-line mb-2">
+      {templates.find((t) => t.id === selectedTemplate)?.message || ""}
+    </p>
+    {(() => {
+      const selectedTemplateData = templates.find((t) => t.id === selectedTemplate);
+      const imageUrl = selectedTemplateData?.imageUrl;
+      
+      if (imageUrl && imageUrl.trim() !== "") {
+        return (
+          <div className="mt-2">
+            <div className="flex items-center mb-2">
+              <ImageIcon className="text-blue-600 mr-2" size={16} />
+              <span className="text-sm font-medium text-gray-700">Image Preview:</span>
+            </div>
+            <div className="relative" style={{ minHeight: '150px' }}>
+              <ImgWithFallback 
+                src={imageUrl}
+                alt="Template Image"
+                name={selectedTemplateData.name}
+                className="max-w-full h-auto max-h-32 rounded border"
+              />
+            </div>
+          </div>
+        );
+      }
+      return null;
+    })()}
+  </div>
+)}
+
             </div>
 
             <div>
-              <label htmlFor="promoCard" className="block text-sm font-medium text-gray-700 mb-1">
-                Include Promo Card (Optional)
-              </label>
-              {loadingPromoCards ? (
-                <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 border-t-2 border-b-2 border-purple-500 rounded-full animate-spin"></div>
-                  <span className="text-sm text-gray-500">Loading promo cards...</span>
-                </div>
-              ) : promoCards.length > 0 ? (
-                <select
-                  id="promoCard"
-                  className="w-full p-2 border rounded-md"
-                  value={selectedPromoCard ? selectedPromoCard.id : ""}
-                  onChange={(e) => {
-                    const selected = promoCards.find((card) => card.id === e.target.value)
-                    setSelectedPromoCard(selected || null)
-                  }}
-                >
-                  <option value="">No promo card</option>
-                  {promoCards.map((card) => (
-                    <option key={card.id} value={card.id}>
-                      {card.code} - {card.discount}% off
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="text-sm text-gray-500 p-2 border border-dashed rounded-md border-gray-300">
-                  No valid promo cards available.
-                </div>
-              )}
-            </div>
+  <label htmlFor="promoCard" className="block text-sm font-medium text-gray-700 mb-1">
+    Include Promo Card (Optional)
+  </label>
+  {loadingPromoCards ? (
+    <div className="flex items-center space-x-2">
+      <div className="h-4 w-4 border-t-2 border-b-2 border-purple-500 rounded-full animate-spin"></div>
+      <span className="text-sm text-gray-500">Loading promo cards...</span>
+    </div>
+  ) : promoCards.length > 0 ? (
+    <select
+      id="promoCard"
+      className="w-full p-2 border rounded-md"
+      value={selectedPromoCard ? selectedPromoCard.id : ""}
+      onChange={(e) => {
+        const selected = promoCards.find((card) => card.id === e.target.value)
+        setSelectedPromoCard(selected || null)
+      }}
+    >
+      <option value="">No promo card</option>
+      {promoCards.map((card) => (
+        <option key={card.id} value={card.id}>
+          {card.code} - {card.discount}% off (Valid until: {card.expiry || 'N/A'})
+        </option>
+      ))}
+    </select>
+  ) : (
+    <div className="text-sm text-gray-500 p-2 border border-dashed rounded-md border-gray-300">
+      No valid promo cards available.
+    </div>
+  )}
+  
+  {/* Show selected promo card details */}
+  {selectedPromoCard && (
+    <div className="mt-2 p-3 bg-blue-50 rounded-md">
+      <h5 className="text-sm font-medium text-blue-700 mb-1">Selected Promo Details:</h5>
+      <p className="text-sm text-blue-600">
+        Code: <strong>{selectedPromoCard.code}</strong><br/>
+        Discount: <strong>{selectedPromoCard.discount}% OFF</strong><br/>
+        Valid Until: <strong>{selectedPromoCard.expiry || 'Limited Time'}</strong>
+      </p>
+    </div>
+  )}
+</div>
 
             <div>
               <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
@@ -1000,18 +1454,17 @@ const CustomerDb = () => {
               onClick={handleSendMessage}
               className="px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-300 flex items-center"
             >
-             {submitting ? (
-    <>
-      <div className="h-4 w-4 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
-      Submitting...
-    </>
-  ) : (
-    <>
-      <MessageSquare size={18} />
-      <span>Send Message</span>
-    </>
-  )}
-
+              {submitting ? (
+                <>
+                  <div className="h-4 w-4 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <MessageSquare size={18} />
+                  <span>Send Message</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1021,115 +1474,205 @@ const CustomerDb = () => {
 
   // Update the handleSendMessage function to include the template message
   const handleSendMessage = async () => {
-    // Get selected customers
-    const customers = 
-      selectedCustomers.length > 0 
-        ? filteredCustomers.filter(customer => selectedCustomers.includes(customer._id))
-        : filteredCustomers.filter(customer => 
-            messageType === "active" ? customer._status === "Active" : customer._status === "Inactive"
-          );
+    // Prevent multiple simultaneous submissions
+    if (submitting) {
+      console.log("Already submitting, skipping...")
+      return
+    }
+  
+    // Get customers based on selection
+    let customers = []
+  
+    if (selectedCustomers.length > 0) {
+      customers = filteredCustomers.filter((customer) => selectedCustomers.includes(customer._id))
+    } else {
+      customers = filteredCustomers.filter((customer) =>
+        messageType === "active" ? customer._status === "Active" : customer._status === "Inactive",
+      )
+    }
   
     if (customers.length === 0) {
       setNotification({
         show: true,
-        message: "No customers selected for messaging!",
-        type: "error"
-      });
+        message: `No customers found to send messages to!`,
+        type: "error",
+      })
       setTimeout(() => {
-        setNotification({ show: false, message: "", type: "" });
-      }, 3000);
-      return;
+        setNotification({ show: false, message: "", type: "" })
+      }, 3000)
+      return
+    }
+  
+    // Check if template is selected
+    if (!selectedTemplate) {
+      setNotification({
+        show: true,
+        message: "Please select a template!",
+        type: "error",
+      })
+      setTimeout(() => {
+        setNotification({ show: false, message: "", type: "" })
+      }, 3000)
+      return
+    }
+  
+    // Find the selected template
+    const template = templates.find((t) => t.id === selectedTemplate)
+    if (!template) {
+      setNotification({
+        show: true,
+        message: "Selected template not found!",
+        type: "error",
+      })
+      setTimeout(() => {
+        setNotification({ show: false, message: "", type: "" })
+      }, 3000)
+      return
     }
   
     // Find the mobile and name headers
     const mobileHeader = tableHeaders.find(
-      header => header.label.toLowerCase().includes("mobile") || header.label.toLowerCase().includes("phone")
-    );
+      (header) => header.label.toLowerCase().includes("mobile") || header.label.toLowerCase().includes("phone"),
+    )
     const nameHeader = tableHeaders.find(
-      header => header.label.toLowerCase().includes("customer") || header.label.toLowerCase().includes("name")
-    );
+      (header) => header.label.toLowerCase().includes("customer") || header.label.toLowerCase().includes("name"),
+    )
   
     if (!mobileHeader || !nameHeader) {
       setNotification({
         show: true,
         message: "Required columns (name/mobile) not found!",
-        type: "error"
-      });
+        type: "error",
+      })
       setTimeout(() => {
-        setNotification({ show: false, message: "", type: "" });
-      }, 3000);
-      return;
+        setNotification({ show: false, message: "", type: "" })
+      }, 3000)
+      return
     }
   
     try {
-      setSubmitting(true);
+      setSubmitting(true)
+      let successCount = 0
+      let failureCount = 0
+      let sheetSubmissions = 0
   
-      // Prepare data to send to Google Sheets
-      const today = new Date();
-      const day = today.getDate().toString().padStart(2, '0');
-      const month = (today.getMonth() + 1).toString().padStart(2, '0');
-      const year = today.getFullYear();
-      const timestamp = `${day}/${month}/${year}`;
+      console.log(`📤 Starting to process ${customers.length} customers...`)
   
-      // Process each customer one by one (since your script doesn't support batch)
-      for (const customer of customers) {
-        const customerName = customer[nameHeader.id] || "N/A";
-        const mobileNumber = customer[mobileHeader.id] || "N/A";
-        
-        // Prepare the row data in the format your script expects
-        const rowData = [
-          timestamp,                // Column A: Timestamp
-          customerName,            // Column B: Customer Name
-          mobileNumber,            // Column C: Mobile Number
-          customMessage,           // Column D: Message
-          selectedPromoCard?.code || "",  // Column E: Promo Code (if any)
-        ];
+      // Prepare timestamp
+      const today = new Date()
+      const day = today.getDate().toString().padStart(2, "0")
+      const month = (today.getMonth() + 1).toString().padStart(2, "0")
+      const year = today.getFullYear()
+      const timestamp = `${day}/${month}/${year}`
   
-        const formData = new FormData();
-        formData.append("sheetName", "Send Message");
-        formData.append("rowData", JSON.stringify(rowData));
-        formData.append("action", "insert");
+      // Process each customer with better error handling
+      for (let i = 0; i < customers.length; i++) {
+        const customer = customers[i]
+        const customerName = customer[nameHeader.id] || "N/A"
+        const mobileNumber = customer[mobileHeader.id] || "N/A"
   
-        // Send data to Google Sheets
-        const response = await fetch(scriptUrl, {
-          method: "POST",
-          body: formData
-        });
+        console.log(`Processing ${i + 1}/${customers.length}: ${customerName}`)
   
-        // Try to parse the response (even in no-cors mode)
+        if (mobileNumber === "N/A" || !mobileNumber) {
+          console.log(`⚠️ Skipping ${customerName} - no mobile number`)
+          failureCount++
+          continue
+        }
+  
         try {
-          const result = await response.text();
-          console.log(`Response for ${customerName}:`, result);
+          // Prepare message with promo card details if selected
+          let finalMessage = replaceTemplateVariables(template.message, customer)
+          
+          // Add promo card details if selected
+          if (selectedPromoCard) {
+            const promoText = `\n\n🎉 Special Offer for You!\nPromo Code: ${selectedPromoCard.code}\nDiscount: ${selectedPromoCard.discount}% OFF\nValid Until: ${selectedPromoCard.expiry || 'Limited Time'}\n\nUse this code to avail the discount!`
+            finalMessage += promoText
+          }
+  
+          // 1. Submit to Google Sheet first
+          const rowData = [
+            timestamp,
+            customerName,
+            mobileNumber,
+            `${template.name} - ${customerName}`,
+            finalMessage, // Use the final message with promo details
+          ]
+  
+          const formData = new FormData()
+          formData.append("sheetName", "Send Message")
+          formData.append("rowData", JSON.stringify(rowData))
+          formData.append("action", "insert")
+  
+          // Submit to sheet with timeout
+          const sheetPromise = fetch(scriptUrl, {
+            method: "POST",
+            mode: "no-cors",
+            body: formData,
+          })
+  
+          await Promise.race([
+            sheetPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Sheet timeout')), 10000))
+          ])
+  
+          sheetSubmissions++
+          console.log(`📊 Sheet submission successful for ${customerName}`)
+  
+          // 2. Send WhatsApp message
+          const imageUrl = template.imageUrl && template.imageUrl.trim() !== "" ? template.imageUrl : null
+  
+          const result = await sendWhatsAppMessage(mobileNumber, finalMessage, customerName, imageUrl)
+  
+          if (result.success) {
+            successCount++
+            console.log(`✅ WhatsApp sent successfully to ${customerName}`)
+          } else {
+            failureCount++
+            console.log(`❌ WhatsApp failed for ${customerName}:`, result.error)
+          }
+  
+          // Add delay between messages to avoid rate limiting
+          if (i < customers.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 2000))
+          }
+  
         } catch (error) {
-          console.log(`Submitted data for ${customerName}`);
+          console.error(`💥 Error processing ${customerName}:`, error)
+          failureCount++
         }
       }
   
-      // Show success notification
+      // Show detailed results
+      console.log(`📋 Final Results: Sheet submissions: ${sheetSubmissions}, WhatsApp success: ${successCount}, Failures: ${failureCount}`)
+  
       setNotification({
         show: true,
-        message: `Message data submitted for ${customers.length} customers!`,
-        type: "success"
-      });
+        message: `Processed ${customers.length} customers! Sheet: ${sheetSubmissions} saved, WhatsApp: ${successCount} sent, Failed: ${failureCount}`,
+        type: successCount > 0 ? "success" : "error",
+      })
+  
+      // Clear selected customers if messages were processed successfully
+      if (successCount > 0) {
+        setSelectedCustomers([])
+      }
   
     } catch (error) {
-      console.error("Error submitting message data:", error);
+      console.error("💥 Error in handleSendMessage:", error)
       setNotification({
         show: true,
-        message: `Failed to submit message data: ${error.message}`,
-        type: "error"
-      });
+        message: `Failed to process messages: ${error.message}`,
+        type: "error",
+      })
     } finally {
       setTimeout(() => {
-        setNotification({ show: false, message: "", type: "" });
-      }, 3000);
-      setSubmitting(false);
-      setShowSendMessageModal(false);
-      setSelectedCustomers([]);
-      setSelectedTemplate("");
-      setCustomMessage("");
+        setNotification({ show: false, message: "", type: "" })
+      }, 8000) // Longer timeout for detailed message
+      setSubmitting(false)
+      setShowSendMessageModal(false)
+      setSelectedTemplate("")
+      setCustomMessage("")
     }
-  };
+  }
 
   // Replace the Send Message Modal in the return statement
   // Find and replace the existing Send Message Modal with this:
@@ -1219,13 +1762,12 @@ const CustomerDb = () => {
             <p className="text-4xl font-bold">{customerList.length}</p>
           </div>
           <div className="bg-white bg-opacity-20 p-4 rounded-full">
-  <img
-    src="https://cdn-icons-png.flaticon.com/512/3050/3050525.png"
-    alt="Salon Logo"
-    className="w-10 h-10 object-contain"
-  />
-</div>
-
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/3050/3050525.png"
+              alt="Salon Logo"
+              className="w-10 h-10 object-contain"
+            />
+          </div>
         </div>
       </div>
 
@@ -1243,19 +1785,24 @@ const CustomerDb = () => {
         </div>
 
         <div className="flex gap-2">
-          {/* <button
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-300"
-            onClick={handleAddCustomerClick}
-          >
-            <UserPlus size={18} />
-            <span>Add Customer</span>
-          </button> */}
+          {/* Update the button text logic in the Search and Add Bar section: */}
+          {/* Change the button to always show "Send Message" instead of conditional text */}
           <button
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors duration-300"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-md transition-colors duration-300"
             onClick={handleSendMessageClick}
+            disabled={submitting}
           >
-            <MessageSquare size={18} />
-            <span>Send Message</span>
+            {submitting ? (
+              <>
+                <div className="h-4 w-4 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
+                <span>Submitting...</span>
+              </>
+            ) : (
+              <>
+                <MessageSquare size={18} />
+                <span>Send Message</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -1318,11 +1865,6 @@ const CustomerDb = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-
-                  {/* Actions Column (Seventh) */}
-                  {/* <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th> */}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -1408,24 +1950,11 @@ const CustomerDb = () => {
                           {customer._status}
                         </span>
                       </td>
-
-                      {/* Actions Column */}
-                      {/* <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          className="text-purple-600 hover:text-purple-800 mr-3"
-                          onClick={() => handleEditCustomer(customer)}
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button className="text-red-600 hover:text-red-800" onClick={() => handleDeleteClick(customer)}>
-                          <Trash2 size={18} />
-                        </button>
-                      </td> */}
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                       No customers found
                     </td>
                   </tr>
@@ -1632,3 +2161,4 @@ const CustomerDb = () => {
 }
 
 export default CustomerDb
+  

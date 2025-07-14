@@ -1057,13 +1057,13 @@ const StaffUser = () => {
                             >
                               <Edit3 size={16} />
                             </button>
-                            <button
+                            {/* <button
                               onClick={() => handleDeleteStaff(staff.id, staff.staffPosition, staff.rowIndex)}
                               className="p-1.5 bg-red-500/20 text-red-200 rounded-md hover:bg-red-500/40 transition-colors"
                               title="Delete"
                             >
                               <Trash2 size={16} />
-                            </button>
+                            </button> */}
                           </div>
                         </td>
                       </tr>
